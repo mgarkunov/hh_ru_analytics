@@ -2,6 +2,8 @@
 import datetime as dt
 import pandas as pd
 import requests
+import yaml
+import sqlalchemy as sa
 
 ### --- Конфигруация логгирования / --- ###
 import logging, sys
@@ -12,6 +14,14 @@ logger.handlers = []
 logger.addHandler(handler_console)
 logger.setLevel(logging.DEBUG)
 ### --- / Конфигруация логгирования --- ###
+
+### --- Пример работы с yaml  / --- ###
+cfg = yaml.safe_load(open('test.yaml', 'r'))
+print(f"""
+Логин: {cfg['service']['u']}
+Пароль: {cfg['service']['p']}
+""")
+### --- / Пример работы с yaml  --- ###
 
 
 def json_to_flatdf(response):
@@ -36,6 +46,8 @@ def load_detail_vacancy(vac_list:list):
   """
 
 # Алогоритм работы скрипта
-# 1. Загружаем 
+# 1. Загружаем список всех вакансий через функцию load_list_vacancies
+# 2. Далее формируем из полученных вакансий массив для загрузки данных в базу.
+# 3. Получаем с
 
 
