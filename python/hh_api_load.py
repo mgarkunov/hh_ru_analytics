@@ -10,12 +10,11 @@ def json_to_flatdf(response):
   """
   pass
 
-def load_list_vacancies(start_date:dt.date, end_date:dt.date, pfof_id ) => dict:
+def load_list_vacancies(start_date:dt.date, end_date:dt.date, pfof_id:list = [], search:str = ""):
   """
   Функция для загрузки списка вакансий
   НАдо будет сделать цикл, который будет обходит от 
   """
   pass
-  
-#%%
-type([])
+
+
