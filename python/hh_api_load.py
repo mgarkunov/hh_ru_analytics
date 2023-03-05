@@ -5,6 +5,8 @@ import requests
 import yaml
 import sqlalchemy as sa
 
+#%%
+
 ### --- Конфигруация логгирования / --- ###
 import logging, sys
 logger = logging.getLogger('debug')
@@ -16,24 +18,24 @@ logger.setLevel(logging.DEBUG)
 ### --- / Конфигруация логгирования --- ###
 
 cfg = yaml.safe_load(open('cfg.yaml', 'r'))
-psql = sa.create_engine(f"postgresql://{cfg['psql']['user']}:{cfg['psql']['pwd']}@{cfg['psql']['host']}:{cfg['psql']['port']}/{cfg['psql']['dbname']}")
+# psql = sa.create_engine(f"postgresql://{cfg['psql']['user']}:{cfg['psql']['pwd']}@{cfg['psql']['host']}:{cfg['psql']['port']}/{cfg['psql']['dbname']}")
 
-# --- Инициализация базы / -- #
-if psql.url.database == 'hh_analytics':
-  psql_con = psql.connect()
-  psql_con.execute(sa.text("""
-  create schema if not exists dwh_stage;
-  commit; -- не забываем комитить работу, так как PSQL транзакционная база
-  """))
-  psql_con.execute(sa.text("""
-  create schema if not exists dwh_mart;
-  commit; -- не забываем комитить работу, так как PSQL транзакционная база
-  """))
-  if psql_con.closed == False:
-    psql_con.close()
-else:
-  raise ValueError('Не правильное название базы')
-# --- / Инициализация базы -- #
+# # --- Инициализация базы / -- #
+# if psql.url.database == 'hh_analytics':
+#   psql_con = psql.connect()
+#   psql_con.execute(sa.text("""
+#   create schema if not exists dwh_stage;
+#   commit; -- не забываем комитить работу, так как PSQL транзакционная база
+#   """))
+#   psql_con.execute(sa.text("""
+#   create schema if not exists dwh_mart;
+#   commit; -- не забываем комитить работу, так как PSQL транзакционная база
+#   """))
+#   if psql_con.closed == False:
+#     psql_con.close()
+# else:
+#   raise ValueError('Не правильное название базы')
+# # --- / Инициализация базы -- #
 
 
 def get_professional_roles() -> pd.DataFrame:
@@ -55,6 +57,15 @@ def get_professional_roles() -> pd.DataFrame:
         'is_default': s['is_default'],
       })
   return pd.DataFrame(dict_lst)
+
+get_professional_roles()
+
+#%%
+
+response = requests.request('GET', 'https://api.hh.ru/professional_roles')
+response.json()
+
+#%%
 
 def json_to_flatdf(response):
   """
@@ -102,4 +113,7 @@ get_professional_roles().to_sql(
   }
 )
 # --- / пример загрузки в базу --- #
+
+#%%
+
 
