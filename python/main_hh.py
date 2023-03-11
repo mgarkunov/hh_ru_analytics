@@ -5,6 +5,7 @@ import pandas as pd
 import datetime as dt
 import yaml
 import sqlalchemy as sa
+import psycopg2
 
 
 ### --- Конфигруация логгирования / --- ###
@@ -53,9 +54,9 @@ else:
 """
 В скрипте пропущен тонкий момент с пагинацией, обязательно добавлю!!!
 TO-DO:
-1. Учесть пагинацию
-2. Переписать get_raw_data, сделать понятнее
-3. Разобраться с send_data, чтобы грузить весь массив данных
+[ v ] 1. Учесть пагинацию
+[ v ] 2. Переписать get_raw_data, сделать понятнее
+[   ] 3. Разобраться с send_data, чтобы грузить весь массив данных
 """
 
 def json_to_flatdf(response):
@@ -96,38 +97,23 @@ def load_list_vacancies(start_date:dt.date, end_date:dt.date, pкof_id:str = "",
     """
     vac_request = f'NAME: {search} OR SPECIALIZATION: {pкof_id}'
     
-    
-    query_params = {
-        'text': vac_request, 
-        'area': 113, 
-        'per_page': 100,
-        'date_from': start_date,
-        'date_to': end_date
+    ids = []
+    while start_date < end_date:
+        query_params = {
+            'text': vac_request, 
+            'area': 113, 
+            'per_page': 100,
+            'date_from': start_date.strftime("%Y-%m-%dT%H:%M:%S"),
+            'date_to': (start_date + dt.timedelta(hours=1, seconds=-1)).strftime("%Y-%m-%dT%H:%M:%S")
         }
-    df = pd.DataFrame()
-    response = requests.get(url=url_HH, params=query_params).json()
-    for page in range(response['pages']):
-        query_params['page'] = page
+        start_date = start_date + dt.timedelta(hours=1)
         response = requests.get(url=url_HH, params=query_params).json()
-        df = pd.concat([df, pd.DataFrame(response['items'])])
-    return list(set(df.id.head(10)))
-
-
-# Функцию переделать и надо уточнять общее количество страниц
-def get_raw_data(query_params):
-    """
-    Функция для сбора всех вакансий, соотвествующих поисковому запросу, её, буду переписывать, оставил пока так, как была изначально, когда
-    была идея делать 2 базы, тут много лишнего
-    """
-    df = pd.DataFrame()
-    response = requests.get(url=url_HH, params=query_params).json()
-    for page in range(response['pages']):
-        query_params['page'] = page
-        response = requests.get(url=url_HH, params=query_params).json()
-        df = pd.concat([df, pd.DataFrame(response['items'])])
-    return list(set(df.id.head(10))) # TEST
-    # return list(set(df.id)) 
-
+        for page in range(response['pages']):
+            query_params['page'] = page
+            response = requests.get(url=url_HH, params=query_params).json()
+            for i in response['items']:
+                ids.append(i.get('id'))
+    return ids
 
 
 def get_vacancies(id_list):
@@ -151,7 +137,6 @@ def send_data(df):
     """
     cols_list = ['id', 'premium', 'name', 'description', 'key_skills', 'archived', 'specializations', 'professional_roles',
                  'published_at', 'created_at', 'initial_created_at']
-    # Заччем использовать еще одну переменную?
     df = df.loc[:, cols_list]
     df.to_sql(
         name='list_of_vacancies',
@@ -184,10 +169,11 @@ def main():
     
     # Получаем список подходящих под наши критерии вакансий
     id_list = load_list_vacancies(date_from, date_to, pкof_id, search)
+    print(id_list)
     # Создаем датафрейм с детальным описанием
-    df_with_vac = get_vacancies(id_list)
+    # df_with_vac = get_vacancies(id_list)
     # Загружаем данные в базу
-    send_data(df_with_vac)
+    # send_data(df_with_vac)
     
 
     
