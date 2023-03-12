@@ -54,9 +54,9 @@ else:
 """
 В скрипте пропущен тонкий момент с пагинацией, обязательно добавлю!!!
 TO-DO:
-[ v ] 1. Учесть пагинацию
-[ v ] 2. Переписать get_raw_data, сделать понятнее
-[   ] 3. Разобраться с send_data, чтобы грузить весь массив данных
+1. Учесть пагинацию
+2. Переписать get_raw_data, сделать понятнее
+3. Разобраться с send_data, чтобы грузить весь массив данных
 """
 
 def json_to_flatdf(response):
@@ -96,7 +96,7 @@ def load_list_vacancies(start_date:dt.date, end_date:dt.date, pкof_id:str = "",
     search - поиковая фраза
     """
     vac_request = f'NAME: {search} OR SPECIALIZATION: {pкof_id}'
-    
+    df = pd.DataFrame()
     ids = []
     while start_date < end_date:
         query_params = {
@@ -108,12 +108,10 @@ def load_list_vacancies(start_date:dt.date, end_date:dt.date, pкof_id:str = "",
         }
         start_date = start_date + dt.timedelta(hours=1)
         response = requests.get(url=url_HH, params=query_params).json()
-        for page in range(response['pages']):
-            query_params['page'] = page
-            response = requests.get(url=url_HH, params=query_params).json()
-            for i in response['items']:
-                ids.append(i.get('id'))
+        df = pd.concat([df, pd.DataFrame(response['items'])])
+    ids = df.id.to_list()
     return ids
+
 
 
 def get_vacancies(id_list):
@@ -163,17 +161,16 @@ def send_data(df):
 #%%
 def main():
 
-    date_from = dt.date.today() - dt.timedelta(days=2)
-    date_to = dt.date.today() - dt.timedelta(days=1)
+    date_from = dt.datetime.combine(dt.date.today(), dt.datetime.min.time()) - dt.timedelta(days=2)
+    date_to = dt.datetime.combine(dt.date.today(), dt.datetime.min.time()) - dt.timedelta(days=1)
 
     
     # Получаем список подходящих под наши критерии вакансий
     id_list = load_list_vacancies(date_from, date_to, pкof_id, search)
-    print(id_list)
     # Создаем датафрейм с детальным описанием
-    # df_with_vac = get_vacancies(id_list)
+    df_with_vac = get_vacancies(id_list)
     # Загружаем данные в базу
-    # send_data(df_with_vac)
+    send_data(df_with_vac)
     
 
     
