@@ -19,36 +19,43 @@ logger.setLevel(logging.DEBUG)
 ### --- / Конфигруация логгирования --- ###
 
 
+
 cfg = yaml.safe_load(open('cfg.yaml', 'r'))
 psql = sa.create_engine(f"postgresql://{cfg['psql']['user']}:{cfg['psql']['pwd']}@{cfg['psql']['host']}:{cfg['psql']['port']}/{cfg['psql']['dbname']}")
 
 
 url_HH = 'https://api.hh.ru/vacancies'
-pкof_id = "(Руководитель отдела аналитики) OR (BI-аналитик, аналитик данных) OR (Аналитик) OR \
-    (Бизнес-аналитик) OR (Продуктовый аналитик) OR (Системный аналитик) OR (Маркетолог-аналитик) \
-        OR (Финансовый аналитик, инвестиционный аналитик) OR (Дата-сайентист)"
+# Исправлять на id
+# pкof_id = "(Руководитель отдела аналитики) OR (BI-аналитик, аналитик данных) OR (Аналитик) OR \
+#     (Бизнес-аналитик) OR (Продуктовый аналитик) OR (Системный аналитик) OR (Маркетолог-аналитик) \
+#         OR (Финансовый аналитик, инвестиционный аналитик) OR (Дата-сайентист)"
+# Доработать с учетом синтаксиса поисковых запросов
 search = "(Data Engineer OR Data Scientist OR Data Analyst OR data science engineer OR Аналитик данных \
     OR Бизнес аналитик OR финансовый аналитик OR системный аналитик OR системная аналитика OR продуктовый аналитик \
         OR дата инженер OR инженер данных OR devops инженер OR датасайнтист OR\
             (Аналитик AND (систем OR продукт OR бизнес OR данн OR финанс)))"
 
 
-# --- Инициализация базы / -- #
-if psql.url.database == 'hh_analytics':
-    psql_con = psql.connect()
-    psql_con.execute(sa.text("""
-    create schema if not exists dwh_stage;
-    commit; -- не забываем комитить работу, так как PSQL транзакционная база
-    """))
-    psql_con.execute(sa.text("""
-    create schema if not exists dwh_mart;
-    commit; -- не забываем комитить работу, так как PSQL транзакционная база
-    """))
-    if psql_con.closed == False:
-        psql_con.close()
-else:
-    raise ValueError('Неправильное название базы')
-# --- / Инициализация базы -- #
+search
+
+#%%
+
+# # --- Инициализация базы / -- #
+# if psql.url.database == 'hh_analytics':
+#     psql_con = psql.connect()
+#     psql_con.execute(sa.text("""
+#     create schema if not exists dwh_stage;
+#     commit; -- не забываем комитить работу, так как PSQL транзакционная база
+#     """))
+#     psql_con.execute(sa.text("""
+#     create schema if not exists dwh_mart;
+#     commit; -- не забываем комитить работу, так как PSQL транзакционная база
+#     """))
+#     if psql_con.closed == False:
+#         psql_con.close()
+# else:
+#     raise ValueError('Неправильное название базы')
+# # --- / Инициализация базы -- #
 #%%
 
 def json_to_flatdf(response):
@@ -80,28 +87,33 @@ def json_to_flatdf(response):
     return pd.DataFrame.from_dict(new_dict, orient='index').transpose()
 
 
-def load_list_vacancies(start_date:dt.date, end_date:dt.date, pкof_id:str = "", search:str = ""):
+def load_list_vacancies(start_date:dt.datetime, end_date:dt.datetime, pкof_id:str = "", search:str = ""):
     """
     Функция для загрузки списка вакансий
     НАдо будет сделать цикл, который будет обходит по дням и часам.
     pкof_id - список для id профессий
     search - поиковая фраза
     """
-    vac_request = f'NAME: {search} OR SPECIALIZATION: {pкof_id}'
+    # проверяем наличие данных в pкof_id и если они есть, то возвращаем результат по pкof_id
+    # Если pкof_id и есть данные в search, то выполняем поиск по ключам
+    # Если нет данных в pкof_id и search, то возвращаем пустое значение
+    # vac_request = f'NAME: {search} OR SPECIALIZATION: {pкof_id}'
+    # Где проверка количества страниц и пагинация?
+    vac_request = f'NAME: {search}'
     df = pd.DataFrame()
     ids = []
     while start_date < end_date:
         query_params = {
-            'text': vac_request, 
+            # 'text': vac_request, 
             'area': 113, 
-            'per_page': 100,
+            'per_page': 10,
             'date_from': start_date.strftime("%Y-%m-%dT%H:%M:%S"),
             'date_to': (start_date + dt.timedelta(hours=1, seconds=-1)).strftime("%Y-%m-%dT%H:%M:%S")
         }
         start_date = start_date + dt.timedelta(hours=1)
         response = requests.get(url=url_HH, params=query_params).json()
         df = pd.concat([df, pd.DataFrame(response['items'])])
-    ids = df.id.to_list()
+    ids = df['id'].to_list()
     return ids
 
 
@@ -151,22 +163,67 @@ def send_data(df):
 
 
 #%%
-def main():
+# def main():
 
-    date_from = dt.datetime.combine(dt.date.today(), dt.datetime.min.time()) - dt.timedelta(days=2)
-    date_to = dt.datetime.combine(dt.date.today(), dt.datetime.min.time()) - dt.timedelta(days=1)
+
+date_from = dt.datetime(2023,3,10,12)
+date_to= dt.datetime(2023,3,10,16)
+
+#%%
+# Получаем список подходящих под наши критерии вакансий
+id_list = load_list_vacancies(date_from, date_to, search=search)
+id_list
+#%%
+
+# Создаем датафрейм с детальным описанием
+df_with_vac = get_vacancies(id_list)
+df_with_vac
+
+#%%
+# Загружаем данные в базу
+send_data(df_with_vac)
+
 
     
-    # Получаем список подходящих под наши критерии вакансий
-    id_list = load_list_vacancies(date_from, date_to, pкof_id, search)
-    # Создаем датафрейм с детальным описанием
-    df_with_vac = get_vacancies(id_list)
-    # Загружаем данные в базу
-    send_data(df_with_vac)
-    
-
-    
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
 
 # %%
+
+vac_request = f'NAME: {search}'
+df = pd.DataFrame()
+ids = []
+sdt = date_from
+edt = sdt + dt.timedelta(hours=1)
+while date_from < date_to:
+    query_params = {
+        'text': vac_request, 
+        'area': 113, 
+        'per_page': 100,
+        'date_from': sdt.strftime("%Y-%m-%dT%H:%M:%S"),
+        'date_to': edt.strftime("%Y-%m-%dT%H:%M:%S")
+    }
+    response = requests.get(url=url_HH, params=query_params).json()
+    sdt = sdt + dt.timedelta(hours=1)
+    edt = sdt + dt.timedelta(hours=1)
+    df = pd.concat([df, pd.DataFrame(response['items'])])
+
+
+#%%
+vac_request = f'NAME: {search}'
+sdt = date_from
+edt = sdt + dt.timedelta(hours=1)
+df = pd.DataFrame()
+query_params = {
+    # 'text': vac_request, 
+    'area': 113, 
+    'per_page': 10,
+    'date_from': sdt.strftime("%Y-%m-%dT%H:%M:%S"),
+    'date_to': edt.strftime("%Y-%m-%dT%H:%M:%S")
+}
+response = requests.get(url=url_HH, params=query_params).json()
+df = pd.concat([df, pd.DataFrame(response['items'])])
+df
+
+#%%
+df['id'].to_list()
